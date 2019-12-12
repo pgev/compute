@@ -123,4 +123,12 @@ contract SpyCore is MasterCopyNonUpgradable, CoreI{
     function openKernelHash() external returns (bytes32) {
         return mockedOpenKernelHash;
     }
+
+    function isValidator(address)
+        external
+        view
+        returns (bool)
+    {
+        return true;
+    }
 }

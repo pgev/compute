@@ -382,36 +382,57 @@ contract Consensus is MasterCopyNonUpgradable, CoreLifetimeEnum, MosaicVersion, 
     }
 
     /**
-     * @notice Enters a validator into a committee.
+     * @notice enterCommittee() function enters the given validator into
+     *         a committee of the tip metablock specified by metachain id.
      *
      * @dev Function requires:
-     *          - the committee exists
-     *          - the validator is active
-     * 			- the validator is not slashed
+     *          - the given metachain id is not 0
+     *          - the given core is running
+     *          - the given validator
+     *              - is active in the given core
+     *              - has not been slashed
+     *          - a committee has been formed for the tip metablock of the
+     *            metachain specified by metachain id
      *
-     * @param _committeeAddress Committee address that validator wants to enter.
+     * @param _metachainId Metachain id.
+     * @param _core Core address to validate the validator against.
      * @param _validator Validator address to enter.
      * @param _furtherMember Validator address that is further member
      *                       compared to the `_validator` address
      */
     function enterCommittee(
-        address _committeeAddress,
+        bytes32 _metachainId,
+        address _core,
         address _validator,
         address _furtherMember
     )
         external
     {
         require(
-            committees[_committeeAddress] != address(0),
-            "Committee does not exist."
+            _metachainId != bytes32(0),
+            "Metachain id is 0."
         );
 
         require(
-            !reputation.isSlashed(_validator),
-            "Validator is slashed."
+            isCoreRunning(_core),
+            "Invalid core has been specified."
         );
 
-        CommitteeI committee = CommitteeI(_committeeAddress);
+        require(
+            isValidator(_core, _validator),
+            "Invalid validator."
+        );
+
+        uint256 metablockTip = metablockTips[_metachainId];
+        Metablock storage metablock = metablockchains[_metachainId][metablockTip];
+
+        CommitteeI committee = proposals[metablock.metablockHash];
+
+        require(
+            committee != CommitteeI(0),
+            "Committee has not been formed."
+        );
+
         committee.enterCommittee(_validator, _furtherMember);
     }
 
@@ -801,6 +822,25 @@ contract Consensus is MasterCopyNonUpgradable, CoreLifetimeEnum, MosaicVersion, 
         committees[SENTINEL_COMMITTEES] = address(committee_);
 
         proposals[_proposal] = committee_;
+    }
+
+    /**
+     * @notice isValidator() function checks if the given validator is an
+     *         active validator in the given core and has not been slashed.
+     *
+     * @param _core Core to check the validator against.
+     * @param _validator Validator's address to check.
+     *
+     * @return Returns true, if the given validator is an active validator
+     *         in the given core and has not been slashed.
+     */
+    function isValidator(address _core, address _validator)
+        internal
+        view
+        returns (bool isValidator_)
+    {
+        isValidator_ = CoreI(_core).isValidator(_validator)
+            && !reputation.isSlashed(_validator);
     }
 
 
